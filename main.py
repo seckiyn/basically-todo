@@ -35,7 +35,7 @@ Help options:
 
 """
 
-def usage() -> int:
+def usage() -> bool:
     """
         Prints the usage and returns
     """
@@ -44,8 +44,10 @@ def usage() -> int:
     print(" -a,     --add         " + "    Adds <todo> into todo list")
     print(" -l,     --list        " + "    Lists todo list")
     print(" -l -e,  --list --enum " + "    Lists todo list with enumeration")
+    print(" -l -c,  --list --check" + "    Lists todo list with checked")
     print(" --restart             " + "    Removes everything")
     print(" -r, --remove <index>  " + "    Removes <index> from list")
+    print(" -c, --check  <index>  " + "    Checks  <index> from list")
     return True
 def print_info(*text: str, sep=" ") -> None:
     """
@@ -60,7 +62,7 @@ def write_to_todo(text: list) -> bool:
         f.write(PREFIX + " " + str(" ".join(text)) + "\n")
     return True
 
-def list_todo(enum=False) -> bool:
+def list_todo(enum=False, checked=False) -> bool:
     """
         List the elements of the list if enum is true list it with enumeration
     """
@@ -70,9 +72,15 @@ def list_todo(enum=False) -> bool:
     if enum:
         for index, item in enumerate(to_print.split("\n")):
             if item: print(str(index) + item)
-        return enum
+        return True
+    elif checked:
+        for index, item in enumerate(to_print.split("\n")):
+            # last_item = item[-1]
+            # checking = item[-1] if item[-1] == "-" else " "
+            if item: print("[{}]".format(item[-1] if item[-1] == "+" else " ") + item)
+        return True
     print("\n".join([i for i in to_print.split("\n") if i]))
-    return bool(enum)
+    return True
 def remove_todo_list() -> bool:
     """
         Fully remove TODO_PATH
@@ -88,6 +96,8 @@ def remove_indexes_from_list(to_remove: list) -> bool:
     """
         Removes all the indexes inside of to_remove
     """
+    # If to_remove is empty and it's a list(there shouldn't be any other type like None, "", ()...) don't do anything
+    if not to_remove and isinstance(to_remove, list): return True
     print_info("Removing", *to_remove)
     int_to_remove = list(map(int, to_remove))
     # print(int_to_remove, to_remove)
@@ -99,7 +109,7 @@ def remove_indexes_from_list(to_remove: list) -> bool:
     # print("Todo list length", todo_list_len)
     # print(int_to_remove, max(int_to_remove))
     if not todo_list_len:
-        print("There is nothing remove")
+        print("There is nothing to remove")
         usage()
         return False
     assert todo_list_len > max(int_to_remove), "Cannot remove out of bounds"
@@ -108,8 +118,43 @@ def remove_indexes_from_list(to_remove: list) -> bool:
             if not(index in int_to_remove):
                 f.write(todo + "\n")
     return True
+def check_indexes_from_list(to_check: list) -> bool:
+    """
+        Check all the indexes inside of to_check
+    """
+    print_info("Checking: ", *to_check)
+    int_to_check = list(map(int, to_check))
+    # print(int_to_check, to_check)
+    old_todo_list = None
+    with open(TODO_PATH, "r") as f:
+        old_todo_list = f.read()
+    todo_list = [i for i in old_todo_list.split("\n") if i]
+    todo_list_len = len(todo_list)
+    # print("Todo list length", todo_list_len)
+    # print(int_to_check, max(int_to_check))
+    if not todo_list_len:
+        print("There is nothing to check")
+        usage()
+        return False
+    assert todo_list_len > max(int_to_check), "Cannot check out of bounds"
+    with open(TODO_PATH, "w") as f:
+        for index, todo in enumerate(todo_list):
+            if index in int_to_check:
+                f.write(todo + "/+" + "\n")
+            else:
+                f.write(todo + "\n")
 
-def parse_args():
+    return True
+
+def remove_checked_from_list() -> bool:
+    list_of_indexes = []
+    with open(TODO_PATH, "r") as f:
+        for index, line in enumerate(f.read().split("\n")):
+            if line and line[-1] == "+":
+                list_of_indexes.append(index)
+    return remove_indexes_from_list(list_of_indexes)
+
+def parse_args() -> bool:
     arguments = sys.argv
     script_name, *arguments = arguments
     if "--help" in arguments or "-h" in arguments:
@@ -118,11 +163,16 @@ def parse_args():
         add, *arguments = arguments
         return write_to_todo(arguments)
     elif "-l" in arguments or "--list" in arguments:
-        listing, *arguments = arguments
+        operation, *arguments = arguments
         enum = False
+        checked = False
         if "-e" in arguments or "--enum" in arguments:
+            assert len(arguments) != 0, f"There no option `{arguments}` after -l"
             enum = True
-        return list_todo(enum)
+        if "-c" in arguments or "--check" in arguments:
+            assert len(arguments) != 0, f"There no option `{arguments}` after -l"
+            checked = True
+        return list_todo(enum, checked)
     elif "--restart" in arguments:
         return remove_todo_list()
     elif "-r" in arguments or "--remove" in arguments:
@@ -136,6 +186,20 @@ def parse_args():
         if not all(map(lambda x: x.isdigit(), to_remove)):
             raise ValueError("Index must be an integer")
         return remove_indexes_from_list(to_remove)
+    elif "-c" in arguments or "--check" in arguments:
+        option, *to_check = arguments
+        # At least one arguments must be in the to_check
+        if not to_check:
+            usage()
+            return False
+        # Type check
+        if not all(map(lambda x: x.isdigit(), to_check)):
+            raise ValueError("Index must be an integer")
+        return check_indexes_from_list(to_check)
+    elif "-rc" in arguments or "--remove-checked" in arguments:
+        option, *arguments = arguments
+        assert len(arguments) == 0, f"There shouldn't be a argument after `{option}`"
+        return remove_checked_from_list()
     else:
         return usage()
 
@@ -147,3 +211,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
