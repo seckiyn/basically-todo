@@ -14,6 +14,13 @@ CONFIG_FILE_PATH = os.path.join(SCRIPT_PATH, CONFIG_FILE_NAME)
 
 # TODO: What are those
 KNOWN_WORDS = ("files", "current")
+
+def get_register_path(register: str) -> str:
+    """
+        Returns the register path to read and write
+    """
+    register_path = os.path.join(SCRIPT_PATH, TODO_FOLDER, register + ".md")
+    return register_path
 def print_info(*text: str, sep=" ") -> None:
     """
         Print info *text seperate by sep
@@ -83,7 +90,8 @@ def read_and_parse_file() -> tuple:
         print_error("Config file {}, doesn't exists".format(CONFIG_FILE_NAME))
         sys.exit(0)
     print_info(f"Reading the file {CONFIG_FILE_PATH}")
-    with open(CONFIG_FILE_NAME, "r") as f:
+
+    with open(CONFIG_FILE_PATH, "r") as f:
         return parse_file(f.read())
 """
 Usage: exif [OPTION...] file
@@ -129,7 +137,9 @@ def create_register(new_register: str, file_names) -> bool:
         if answer.lower() == "yes" or answer.lower() == "y":
             return create_new_register(new_register, file_names)
         sys.exit(1)
-    path = os.path.join(SCRIPT_PATH, TODO_FOLDER, new_register + ".md")
+    path = get_register_path(new_register)
+    if not os.path.exists(path):
+        with open(path, "w") as f: pass # Create the file
     assert os.path.exists(path), f"There's something wrong file {new_register}.md should've been already exist: {path}"
     tuple_content = (file_names, new_register)
     assert len(tuple_content) == 2, "You probably forgot processing new data"
@@ -147,6 +157,7 @@ def usage() -> bool:
     print(" --restart               " + "    Removes everything")
     print(" -r, --remove    <index> " + "    Removes <index> from list")
     print(" -r -c                   " + "    Removes checked from list")
+    print(" -c                      " + "    Lists todo list with checked")
     print(" -c, --check     <index> " + "    Checks  <index> from list")
     print(" -g, --register          " + "    Print registers and current register")
     print(" -g, --register  <regis> " + "    Change register to regis")
@@ -155,7 +166,9 @@ def write_to_todo(register: str, text: list) -> bool:
     """
         Write given list element to do TODO_PATH
     """
-    with open(os.path.join(TODO_FOLDER, register + ".md"), "a+") as f:
+    # path = os.path.join(TODO_FOLDER, register + ".md")
+    register_path = get_register_path(register)
+    with open(register_path, "a+") as f:
         f.write(PREFIX + " " + str(" ".join(text)) + "\n")
     return True
 
@@ -164,7 +177,8 @@ def list_todo(register: str, enum=False, checked=False) -> bool:
         List the elements of the list if enum is true list it with enumeration
     """
     to_print = ""
-    with open(os.path.join(TODO_FOLDER, register + ".md"), "r") as f:
+    register_path = get_register_path(register)
+    with open(register_path , "r") as f:
         to_print = f.read()
     if enum:
         for index, item in enumerate(to_print.split("\n")):
@@ -184,7 +198,9 @@ def remove_todo_list(register: str) -> bool:
     """
     answer = input("Type `yes` and enter if you want to remove list: ")
     if answer == "yes":
-        with open(os.path.join(TODO_FOLDER, register + ".md"), "w") as f:
+        # register_path = os.path.join(TODO_FOLDER, register + ".md")
+        register_path = get_register_path(register)
+        with open(register_path, "w") as f:
             f.write("")
     print_info("List removed")
     return True
@@ -199,7 +215,9 @@ def remove_indexes_from_list(register: str, to_remove: list) -> bool:
     int_to_remove = list(map(int, to_remove))
     # print(int_to_remove, to_remove)
     old_todo_list = None
-    with open(os.path.join(TODO_FOLDER, register + ".md"), "r") as f:
+    # register_path = os.path.join(TODO_FOLDER, register + ".md")
+    register_path = get_register_path(register)
+    with open(register_path, "r") as f:
         old_todo_list = f.read()
     todo_list = [i for i in old_todo_list.split("\n") if i]
     todo_list_len = len(todo_list)
@@ -210,7 +228,9 @@ def remove_indexes_from_list(register: str, to_remove: list) -> bool:
         usage()
         return False
     assert todo_list_len > max(int_to_remove), "Cannot remove out of bounds"
-    with open(os.path.join(TODO_FOLDER, register + ".md"), "w") as f:
+    # register_path = os.path.join(TODO_FOLDER, register + ".md")
+    register_path = get_register_path(register)
+    with open(register_path, "w") as f:
         for index, todo in enumerate(todo_list):
             if not(index in int_to_remove):
                 f.write(todo + "\n")
@@ -223,7 +243,9 @@ def check_indexes_from_list(register: str, to_check: list) -> bool:
     int_to_check = list(map(int, to_check))
     # print(int_to_check, to_check)
     old_todo_list = None
-    with open(os.path.join(TODO_FOLDER, register + ".md"), "r") as f:
+    # register_path = os.path.join(TODO_FOLDER, register + ".md")
+    register_path = get_register_path(register)
+    with open(register_path, "r") as f:
         old_todo_list = f.read()
     todo_list = [i for i in old_todo_list.split("\n") if i]
     todo_list_len = len(todo_list)
@@ -234,7 +256,9 @@ def check_indexes_from_list(register: str, to_check: list) -> bool:
         usage()
         return False
     assert todo_list_len > max(int_to_check), "Cannot check out of bounds"
-    with open(os.path.join(TODO_FOLDER, register + ".md"), "w") as f:
+    # register_path = os.path.join(TODO_FOLDER, register + ".md")
+    register_path = get_register_path(register)
+    with open(register_path , "w") as f:
         for index, todo in enumerate(todo_list):
             if index in int_to_check:
                 f.write(todo + "/+" + "\n")
@@ -245,7 +269,9 @@ def check_indexes_from_list(register: str, to_check: list) -> bool:
 
 def remove_checked_from_list(register: str) -> bool:
     list_of_indexes = []
-    with open(os.path.join(TODO_FOLDER, register + ".md"), "r") as f:
+    # register_path = os.path.join(TODO_FOLDER, register + ".md")
+    register_path = get_register_path(register)
+    with open(register_path, "r") as f:
         for index, line in enumerate(f.read().split("\n")):
             if line and line[-1] == "+":
                 list_of_indexes.append(index)
