@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import re
 from typing import List, Tuple
 
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -93,33 +94,6 @@ def read_and_parse_file() -> tuple:
 
     with open(CONFIG_FILE_PATH, "r") as f:
         return parse_file(f.read())
-"""
-Usage: exif [OPTION...] file
-  -v, --version                   Display software version
-  -i, --ids                       Show IDs instead of tag names
-  -t, --tag=tag                   Select tag
-      --ifd=IFD                   Select IFD
-  -l, --list-tags                 List all EXIF tags
-  -|, --show-mnote                Show contents of tag MakerNote
-      --remove                    Remove tag or ifd
-  -s, --show-description          Show description of tag
-  -e, --extract-thumbnail         Extract thumbnail
-  -r, --remove-thumbnail          Remove thumbnail
-  -n, --insert-thumbnail=FILE     Insert FILE as thumbnail
-      --no-fixup                  Do not fix existing tags in files
-  -o, --output=FILE               Write data to FILE
-      --set-value=STRING          Value of tag
-  -c, --create-exif               Create EXIF data if not existing
-  -m, --machine-readable          Output in a machine-readable (tab delimited) format
-  -w, --width=WIDTH               Width of output
-  -x, --xml-output                Output in a XML format
-  -d, --debug                     Show debugging messages
-
-Help options:
-  -?, --help                      Show this help message
-      --usage                     Display brief usage message
-
-"""
 
 def print_registers(register: str, file_names: tuple) -> bool:
     print_info("Registers are {}".format("\n\t".join(file_names)))
@@ -130,6 +104,7 @@ def create_new_register(new_register: str, file_names: tuple) -> bool:
     tuple_content = (file_names + (new_register,), new_register)
     assert len(tuple_content) == 2, "You probably forgot some data to process"
     create_file(tuple_content)
+    return True
 def create_register(new_register: str, file_names) -> bool:
     if  new_register not in file_names:
         print_info("This register doesn't exist do you want to create it.")
@@ -153,23 +128,68 @@ def usage() -> bool:
     print(" -a,     --add           " + "    Adds <todo> into todo list")
     print(" -l,     --list          " + "    Lists todo list")
     print(" -l -e,  --list --enum   " + "    Lists todo list with enumeration")
+    print(" -e   ,  --enum          " + "    Lists todo list with enumeration")
     print(" -l -c,  --list --check  " + "    Lists todo list with checked")
     print(" --restart               " + "    Removes everything")
     print(" -r, --remove    <index> " + "    Removes <index> from list")
     print(" -r -c                   " + "    Removes checked from list")
     print(" -c                      " + "    Lists todo list with checked")
     print(" -c, --check     <index> " + "    Checks  <index> from list")
+    print(" -c, --check     <range> " + "    Check [start:stop](both included)"
+                                             + "range from list")
     print(" -g, --register          " + "    Print registers and current register")
     print(" -g, --register  <regis> " + "    Change register to regis")
     return True
+
+def bash_the_string(string: str) -> str:
+    """
+        Takes the string that contains !()
+    """
+    regex = "!\([0-9*\-/+ ]+\)"
+    regex = re.compile(regex)
+    is_it_contains_bash = regex.findall(string)
+    # print(is_it_contains_bash)
+    new_string = string
+    # print(len(is_it_contains_bash))
+    # TODO: Maybe add recursive addition
+    for i in is_it_contains_bash:
+        # TODO: CHANGE EVAL
+        new_string, count = regex.subn(str(eval(i[1:])), new_string, 1)
+        # print(new_string)
+
+    return new_string
+
+def check_bash_string(string: str) -> bool:
+    regex = "!\([0-9*\-/+ ]+\)"
+    regex = re.compile(regex)
+    is_it_contains_bash = regex.findall(string)
+    return bool(is_it_contains_bash)
+"""
+while True:
+    inp = input("bash:")
+    # print(check_bash_string(inp))
+    print(bash_the_string(inp))
+"""
+def parse_todo_string(string: str) -> bool:
+    if check_bash_string(string):
+        return bash_the_string(string)
+    return string
 def write_to_todo(register: str, text: list) -> bool:
     """
         Write given list element to do TODO_PATH
     """
     # path = os.path.join(TODO_FOLDER, register + ".md")
     register_path = get_register_path(register)
+    to_write = PREFIX + " " + str(" ".join(text)) + "\n"
+    to_write = parse_todo_string(to_write)
+    if "!" in to_write:
+        to_write = bash_the_string(to_write)
     with open(register_path, "a+") as f:
-        f.write(PREFIX + " " + str(" ".join(text)) + "\n")
+        if any(text):
+            f.write(to_write)
+        else:
+            print_error("You cannot add empty items to todo")
+            usage()
     return True
 
 def list_todo(register: str, enum=False, checked=False) -> bool:
@@ -188,9 +208,9 @@ def list_todo(register: str, enum=False, checked=False) -> bool:
         for index, item in enumerate(to_print.split("\n")):
             # last_item = item[-1]
             # checking = item[-1] if item[-1] == "-" else " "
-            if item: print("[{}]".format(item[-1] if item[-1] == "+" else " ") + item)
+            if item: print("[{}]".format(item[-1] if is_checked_line(item) else " ") + item)
         return True
-    print("\n".join([i for i in to_print.split("\n") if i]))
+    print("\n".join([i.split("#")[0] for i in to_print.split("\n") if i]))
     return True
 def remove_todo_list(register: str) -> bool:
     """
@@ -260,12 +280,15 @@ def check_indexes_from_list(register: str, to_check: list) -> bool:
     register_path = get_register_path(register)
     with open(register_path , "w") as f:
         for index, todo in enumerate(todo_list):
-            if index in int_to_check:
-                f.write(todo + "/+" + "\n")
+            if index in int_to_check and not is_checked_line(todo):
+                f.write(todo + "#+" + "\n")
             else:
                 f.write(todo + "\n")
 
     return True
+
+def is_checked_line(line):
+    return line and line[-1] == "+"
 
 def remove_checked_from_list(register: str) -> bool:
     list_of_indexes = []
@@ -273,10 +296,33 @@ def remove_checked_from_list(register: str) -> bool:
     register_path = get_register_path(register)
     with open(register_path, "r") as f:
         for index, line in enumerate(f.read().split("\n")):
-            if line and line[-1] == "+":
+            if is_checked_line(line):
                 list_of_indexes.append(index)
     return remove_indexes_from_list(register, list_of_indexes)
 
+def return_check_range(to_check):
+    list_to_be_checked = None
+    if ":" in to_check:
+        print("I'M CHECKING BOSS")
+        list_of_to_check = list()
+        splitted_to_check = to_check.split(":")
+        # Check if there are 2 range points
+        if len(splitted_to_check) != 2:
+            print_error("Wrong ranged text")
+            usage()
+            sys.exit()
+        # Check if both of the range points are valid integers
+        if not all(map(lambda x: x.isdigit(), splitted_to_check)):
+            print_error("Index should be an integer like 2:5")
+            usage()
+            sys.exit()
+        start, end = map(int, splitted_to_check)
+        if not start <= end:
+            print_error("Start point should be lower or equal to end point")
+        list_to_be_checked = list()
+        for index in range(start, end + 1):
+            list_to_be_checked.append(index)
+    return list_to_be_checked
 def parse_args(config: tuple) -> bool:
     arguments = sys.argv
     script_name, *arguments = arguments
@@ -298,6 +344,8 @@ def parse_args(config: tuple) -> bool:
             assert len(arguments) != 0, f"There no option `{arguments}` after -l"
             checked = True
         return list_todo(register, enum, checked)
+    elif "-e" in arguments or "--enum" in arguments:
+        return list_todo(register, True, False)
     elif "--restart" in arguments:
         return remove_todo_list(register)
     elif "-r" in arguments or "--remove" in arguments:
@@ -316,11 +364,22 @@ def parse_args(config: tuple) -> bool:
     elif "-c" in arguments or "--check" in arguments:
         option, *to_check = arguments
         # At least one arguments must be in the to_check
+        # If there's not just list todo with checked properties
         if not to_check:
             return list_todo(register, False, True)
+        # Check if todo is a range
         # Type check
-        if not all(map(lambda x: x.isdigit(), to_check)):
+        if not all(map(lambda x: x.isdigit() or ":" in x, to_check)):
             raise ValueError("Index must be an integer")
+        new_to_check = list()
+        for ranges in to_check:
+            if ":" in ranges:
+                new_to_check.extend(return_check_range(ranges))
+            else:
+                new_to_check.append(ranges)
+        to_check = new_to_check
+
+
         return check_indexes_from_list(register, to_check)
     elif "-g" in arguments or "--register" in arguments:
         option, *arguments = arguments
