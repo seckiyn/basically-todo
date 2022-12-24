@@ -131,10 +131,10 @@ def usage() -> bool:
     print(" -e   ,  --enum          " + "    Lists todo list with enumeration")
     print(" -l -c,  --list --check  " + "    Lists todo list with checked")
     print(" --restart               " + "    Removes everything")
-    print(" -r, --remove    <index> " + "    Removes <index> from list")
+    print(" -r, --remove  <indexes> " + "    Removes <indexes> from list")
     print(" -r -c                   " + "    Removes checked from list")
     print(" -c                      " + "    Lists todo list with checked")
-    print(" -c, --check     <index> " + "    Checks  <index> from list")
+    print(" -c, --check   <indexes> " + "    Checks  <index> from list")
     print(" -c, --check     <range> " + "    Check [start:stop](both included)"
                                              + "range from list")
     print(" -g, --register          " + "    Print registers and current register")
